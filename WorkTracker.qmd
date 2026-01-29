@@ -1,0 +1,16 @@
+---
+title: "Work Tracker"
+format: html
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+# Heading
+```{r setup}
+x <- 4
+y <- 5
+```
+
+The sum of `{r} x` and `{r} y` is `{r} x + y`.
