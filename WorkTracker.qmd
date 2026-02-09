@@ -9,6 +9,8 @@ execute:
 
 # Heading
 ```{r setup}
+
+if(!require("googlesheets4")) install.packages("googlesheets4")
 library(googlesheets4)
 library(tidyverse)
 
