@@ -13,7 +13,7 @@ library(googlesheets4)
 library(tidyverse)
 
 # Auth
-# gs4_auth()
+gs4_deauth()
 
 # Get data
 ss <- "1rcDmNY3PJWS5DmegMahP_Mj3oJ_j4MdvwqtmtQb9Gdk"
