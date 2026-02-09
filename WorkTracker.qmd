@@ -9,8 +9,15 @@ execute:
 
 # Heading
 ```{r setup}
-x <- 4
-y <- 5
+library(googlesheets4)
+library(tidyverse)
+
+# Get data
+ss <- "1rcDmNY3PJWS5DmegMahP_Mj3oJ_j4MdvwqtmtQb9Gdk"
+df <- read_sheet(ss, sheet = "Raw Data") |> filter(!is.na(Date))
+mdf <- read_sheet(ss, sheet = "KPI List")
+
+x <- nrow(df)
 ```
 
-The sum of `{r} x` and `{r} y` is `{r} x + y`.
+There are  `{r} x` rows.
