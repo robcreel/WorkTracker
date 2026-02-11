@@ -1,16 +1,20 @@
 ---
 title: "Work Tracker"
-format: html
+format: 
+  html:
+    toc: true
+
 execute:
   echo: false
   message: false
   warning: false
 ---
 
-# Heading
-```{r setup}
+```{r setup, echo=F,   warning=F}
 library(googlesheets4)
 library(tidyverse)
+library(knitr)
+
 
 # Auth
 gs4_deauth()
@@ -20,7 +24,205 @@ ss <- "1rcDmNY3PJWS5DmegMahP_Mj3oJ_j4MdvwqtmtQb9Gdk"
 df <- read_sheet(ss, sheet = "Raw Data") |> filter(!is.na(Date))
 mdf <- read_sheet(ss, sheet = "KPI List")
 
-x <- nrow(df)
+#### Munge data ####
+# NA Count means Count should be 1.
+# sfd <- stamp("Sat, Jan 17, 1999")
+# sfw <- stamp("Jan 17, 1999")
+year_string <- ", 2026"
+
+df <- df |> 
+  mutate(Count = replace_na(Count, 1)) |> 
+  arrange(Date) |> 
+  select(-URL, -Notes)
+  
+# Analyze data by across four categories:
+# Brand sensitive and insensitive, and
+# Daily vs. Weekly
+
+# Split out daily vs weekly.
+cadence_mdf <- mdf |> 
+  select(`Work Item`, Cadence) |> 
+  unique()
+
+df |> 
+  left_join(
+    cadence_mdf,
+    by = c("Work Completed" = "Work Item")) |> 
+  identity() -> cadence_df
+
+daily_df <- cadence_df |> 
+  filter(Cadence == "Daily") |> 
+  # mutate(Date = sfd(Date) |> str_remove(year_string)) |> 
+  # mutate(Date = sfd(Date)) |> 
+  select(-Cadence)
+
+weekly_df <- cadence_df |> 
+  filter(Cadence == "Weekly") |> 
+  select(-Cadence) |> 
+  mutate(WeekOf = round_date(Date, unit = "week") + days(1)) |> 
+  # mutate(WeekOf = sfw(WeekOf) |> str_remove(year_string)) |> 
+  # mutate(WeekOf = sfw(WeekOf)) |> 
+  group_by(WeekOf) 
+
+# Split out daily vs weekly
+daily_brand_sensitive_df <- daily_df |> 
+  filter(str_detect(`Work Completed`, "WBEZ or Sun"))
+daily_brand_arbitrary_df <- daily_df |> 
+  setdiff(daily_brand_sensitive_df)
 ```
 
-There are  `{r} x` rows.
+# Daily
+
+## Daily KPIs (Brand doesn't matter.)
+### Audience Channel Check-In Comments, Marfeel, and High Impact Social Post edits.
+```{r daily_brand_arbitrary_kpis, echo=F,   warning=F}
+# Daily, Brand arbitrary KPIs
+# [Check] A. Morning Audience Channel Comment	Share a note with the team in the #audience-internal channel by 10am each shift.
+# [Check] A. Afternoon Audience Channel Comment	Share a note with the team in the #audience-internal channel before the end of each shift.
+# [Check] B. Review Marfeel Data	Review Marfeel data at least once per day.
+# [Check] C. High Impact Social Post Edit	Edit at least 3 high impact Instagram/TIkTok posts per day.
+
+daily_brand_arbitrary_df |> 
+  select(-Brand) |> 
+  group_by(Date, `Work Completed`) |> 
+  summarise(count = sum(Count)) |> 
+  left_join(
+    select(mdf, `Work Item`, Target), 
+    by = c("Work Completed" = "Work Item")) |> 
+  filter(!is.na(Target)) |> 
+  identity() -> daily_brand_arbitrary_kpis_df
+
+daily_brand_arbitrary_kpis_df |> 
+  select(-Target) |>
+  pivot_wider(names_from = "Work Completed", values_from = "count", values_fill = 0) %>% 
+  select(Date, sort(names(.))) |> 
+  kable()
+```
+
+
+## Daily KPIs (Brand Sensitive)
+### Daily Story Slugs Tracked
+```{r daily_brand_sensitive_kips, echo=F,   warning=F}
+
+# Daily, Brand specific KPIs
+# [Check] C. Story Slug Tracked - (WBEZ or Sun-Times)	Record the story slug in the social tracker and add your name as the editor.
+# [Check] C. Story Slug Tracked - (WBEZ or Sun-Times)	At least 1 edited post per day should be intended for a Sun-Times brand account.
+
+daily_brand_sensitive_df |> 
+  filter(`Work Completed` |> str_detect("Story Slug Tracked")) |> 
+  group_by(Date, `Work Completed`, Brand) |>
+  summarise(count = sum(Count)) |> 
+  ungroup() |> 
+  select(-`Work Completed`) |> 
+  pivot_wider(names_from = Brand, values_from = count, values_fill = 0) |> 
+  rowwise() |> 
+  mutate(Total = sum(c_across(where(is.numeric)))) |> 
+  identity() -> story_slug_tracked_df
+
+kable(story_slug_tracked_df)
+```
+
+# Weekly
+## Weekly KPIs (Brand doesn't matter.)
+```{r weekly_brand_arbitrary_kpis, echo=F,   warning=F}
+
+##### Weekly #####
+weekly_brand_sensitive_df <- weekly_df |> 
+  filter(str_detect(`Work Completed`, "WBEZ or Sun"))
+weekly_brand_arbitrary_df <- weekly_df |> 
+  setdiff(weekly_brand_sensitive_df)
+
+
+# [Uncheckable] C. Support Request Acknowledged Within 30 Minutes	
+# [Uncheckable] C. Support Request Completed or Coodinated	
+# [Uncheckable] D. Edit Story or Assist with Assets	Make approved edits to stories or assist with adding assets at least 5 times per week.
+
+# [Check] B. Insights Based Observation	Demonstrate usage by sharing at least 3 insights based observations per week in #audienceteam-internal. (Add screenshot to folder.)
+weekly_df |> 
+  filter(`Work Completed` == "B. Insights Based Observation") |> 
+  summarise(IOB_count = sum(Count)) |> 
+    mutate(Target = 3) |> 
+    identity() -> weekly_insight_based_observation_df
+  
+# [Saman said to ignore, 2026-02-11] B. Parse.ly Utilization - (WBEZ or Sun-Times)	Utilize Parse.ly for WBEZ at least 25 times per week.
+# [Saman said to ignore, 2026-02-11] B. Parse.ly Utilization - (WBEZ or Sun-Times)	Utilize Parse.ly for Sun-Times at least 25 times per week.
+  
+# weekly_df |> 
+#   filter(`Work Completed` == "B. Parse.ly Utilization - (WBEZ or Sun-Times)") |> 
+#   mutate(
+#     WBEZ = ifelse(Brand %in% c("WBEZ", "Both"), Count, 0),
+#     `Sun-Times` = ifelse(Brand %in% c("Sun-Times", "Both"), Count, 0)
+#   ) |> 
+#   select(Week, WBEZ, `Sun-Times`) |> 
+#   pivot_longer(-Week, names_to = "Brand", values_to = "Count") |> 
+#   group_by(Week, Brand) |> 
+#   summarise(`Total Parse.ly Utilizations` = sum(Count)) |> 
+#   mutate(Target = 25) |> 
+#   identity() -> weekly_parsely_df
+
+
+# [Check] D. Send Push Notification	Send at least 3 push notifications per week
+weekly_df |> 
+  filter(`Work Completed` |> str_detect("Push N")) |> 
+  count(WeekOf, name = "Push Notifications Sent") |> 
+  mutate(Target = 3) |> 
+  identity() -> weekly_push_notifications_df
+
+```
+
+### Weekly Insight Based Observations
+`r kable(weekly_insight_based_observation_df)`
+
+### Weekly Push Notifications
+`r kable(weekly_push_notifications_df)`
+
+## Weekly KPIs (Brand sensitive)
+```{r weekly_brand_sensitive_kpis, echo=F,   warning=F}
+
+
+# [Check] C. Story Scheduled (WBEZ or Sun-Times)	On Mondays, schedule at least 8 stories.
+# [Check] C. Story Scheduled (WBEZ or Sun-Times)	On Fridays, schedule at least 8 stories.
+# C. Story Scheduled (WBEZ or Sun-Times)	Schedule at least 20 stories in a week.
+# [Check] C. Story Scheduled (WBEZ or Sun-Times)	At least 1 scheduled story per week should be on a Sun-Times Platform
+# D. Assist with Updating Homepage (WBEZ or Sun-Times)	Assist with updating WBEZ homepage at least 5 times per week.
+# D. Assist with Updating Homepage (WBEZ or Sun-Times)	Assist with updating Sun-Times homepage at least 5 times per week.
+
+
+weekly_df |> 
+  filter(`Work Completed` == "C. Story Scheduled (WBEZ or Sun-Times)") |> 
+  group_by(WeekOf, Brand) |> 
+  summarise(`Week Total` = sum(Count)) |> 
+  identity() -> total_stories_scheduled_df
+
+
+weekly_df |> 
+  filter(`Work Completed` == "C. Story Scheduled (WBEZ or Sun-Times)") |> 
+  mutate(Day = wday(Date, label = TRUE, abbr = FALSE)) |>
+  mutate(Day = case_when(
+    Day %in% c("Monday", "Friday") ~ Day,
+    TRUE ~ "Midweek"
+  )) |> 
+  select(WeekOf, Day, Brand, Count) |> 
+  group_by(WeekOf, Day, Brand) %>% 
+  summarise(
+    Count = sum(Count)
+  ) %>% 
+  pivot_wider(names_from = "Day", values_from = "Count", values_fill = 0) |> 
+  select(WeekOf, Brand, Monday, Midweek,  Friday) |> 
+  left_join(total_stories_scheduled_df) |> 
+  # arrange(WeekOf, Brand) |> 
+  identity() -> weekly_stories_scheduled_by_brand_df
+
+weekly_stories_scheduled_by_brand_df |> 
+  select(-Brand) |> 
+  summarise(across(where(is.numeric), sum)) |> 
+  identity() -> weekly_stories_scheduled_total_df
+
+```
+
+### Weekly Stories Scheduled
+#### By Brand
+`r kable(weekly_stories_scheduled_by_brand_df)`
+#### Total
+`r kable(weekly_stories_scheduled_total_df)`
+
