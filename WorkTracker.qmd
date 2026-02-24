@@ -15,6 +15,7 @@ execute:
 library(googlesheets4)
 library(tidyverse)
 library(knitr)
+library(kableExtra)
 
 
 # Auth
@@ -27,8 +28,8 @@ mdf <- read_sheet(ss, sheet = "KPI List")
 
 #### Munge data ####
 # NA Count means Count should be 1.
-# sfd <- stamp("Sat, Jan 17, 1999")
-# sfw <- stamp("Jan 17, 1999")
+sfd <- stamp("Sat, Jan 17, 1999")
+sfw <- stamp("Jan 17, 1999")
 year_string <- ", 2026"
 
 df <- df |> 
@@ -53,16 +54,16 @@ df |>
 
 daily_df <- cadence_df |> 
   filter(Cadence == "Daily") |> 
-  # mutate(Date = sfd(Date) |> str_remove(year_string)) |> 
-  # mutate(Date = sfd(Date)) |> 
+  mutate(oDate = Date) |> 
+  mutate(Date = sfd(Date) |> str_remove(year_string)) |> 
+  mutate(Date = sfd(Date)) |> 
   select(-Cadence)
 
 weekly_df <- cadence_df |> 
   filter(Cadence == "Weekly") |> 
   select(-Cadence) |> 
-  mutate(WeekOf = round_date(Date, unit = "week") + days(1)) |> 
-  # mutate(WeekOf = sfw(WeekOf) |> str_remove(year_string)) |> 
-  # mutate(WeekOf = sfw(WeekOf)) |> 
+  mutate(oWeekOf = round_date(Date, unit = "week") + days(1)) |> 
+  mutate(WeekOf = sfw(oWeekOf) |> str_remove(year_string)) |> 
   group_by(WeekOf) 
 
 # Split out daily vs weekly
@@ -85,7 +86,7 @@ daily_brand_arbitrary_df <- daily_df |>
 
 daily_brand_arbitrary_df |> 
   select(-Brand) |> 
-  group_by(Date, `Work Completed`) |> 
+  group_by(oDate, Date, `Work Completed`) |> 
   summarise(count = sum(Count)) |> 
   left_join(
     select(mdf, `Work Item`, Target), 
@@ -97,7 +98,13 @@ daily_brand_arbitrary_kpis_df |>
   select(-Target) |>
   pivot_wider(names_from = "Work Completed", values_from = "count", values_fill = 0) %>% 
   select(Date, sort(names(.))) |> 
-  kable()
+  arrange(oDate) |> 
+  ungroup() |> 
+  select(-oDate) |> 
+  kable() |> 
+  kable_styling() |> 
+  scroll_box(height = "700px", width = "100%") 
+
 ```
 
 
@@ -111,13 +118,16 @@ daily_brand_arbitrary_kpis_df |>
 
 daily_brand_sensitive_df |> 
   filter(`Work Completed` |> str_detect("Story Slug Tracked")) |> 
-  group_by(Date, `Work Completed`, Brand) |>
+  group_by(oDate, Date, `Work Completed`, Brand) |>
   summarise(count = sum(Count)) |> 
   ungroup() |> 
   select(-`Work Completed`) |> 
   pivot_wider(names_from = Brand, values_from = count, values_fill = 0) |> 
   rowwise() |> 
   mutate(Total = sum(c_across(where(is.numeric)))) |> 
+  arrange(oDate) |> 
+  ungroup() |> 
+  select(-oDate) |> 
   identity() -> story_slug_tracked_df
 
 kable(story_slug_tracked_df)
@@ -140,10 +150,14 @@ weekly_brand_arbitrary_df <- weekly_df |>
 
 # [Check] B. Insights Based Observation	Demonstrate usage by sharing at least 3 insights based observations per week in #audienceteam-internal. (Add screenshot to folder.)
 weekly_df |> 
+  group_by(oWeekOf, WeekOf) |> 
   filter(`Work Completed` == "B. Insights Based Observation") |> 
   summarise(IOB_count = sum(Count)) |> 
-    mutate(Target = 3) |> 
-    identity() -> weekly_insight_based_observation_df
+  mutate(Target = 3) |> 
+  arrange(oWeekOf) |> 
+  ungroup() |> 
+  select(-oWeekOf) |> 
+  identity() -> weekly_insight_based_observation_df
   
 # [Saman said to ignore, 2026-02-11] B. Parse.ly Utilization - (WBEZ or Sun-Times)	Utilize Parse.ly for WBEZ at least 25 times per week.
 # [Saman said to ignore, 2026-02-11] B. Parse.ly Utilization - (WBEZ or Sun-Times)	Utilize Parse.ly for Sun-Times at least 25 times per week.
@@ -165,8 +179,11 @@ weekly_df |>
 # [Check] D. Send Push Notification	Send at least 3 push notifications per week
 weekly_df |> 
   filter(`Work Completed` |> str_detect("Push N")) |> 
-  count(WeekOf, name = "Push Notifications Sent") |> 
+  count(oWeekOf, WeekOf, name = "Push Notifications Sent") |> 
   mutate(Target = 3) |> 
+  arrange(oWeekOf) |> 
+  ungroup() |> 
+  select(-oWeekOf) |> 
   identity() -> weekly_push_notifications_df
 
 ```
@@ -191,8 +208,11 @@ weekly_df |>
 
 weekly_df |> 
   filter(`Work Completed` == "C. Story Scheduled (WBEZ or Sun-Times)") |> 
-  group_by(WeekOf, Brand) |> 
+  group_by(oWeekOf, WeekOf, Brand) |> 
   summarise(`Week Total` = sum(Count)) |> 
+  arrange(oWeekOf) |> 
+  ungroup() |> 
+  select(-oWeekOf) |> 
   identity() -> total_stories_scheduled_df
 
 
@@ -203,20 +223,26 @@ weekly_df |>
     Day %in% c("Monday", "Friday") ~ Day,
     TRUE ~ "Midweek"
   )) |> 
-  select(WeekOf, Day, Brand, Count) |> 
-  group_by(WeekOf, Day, Brand) %>% 
-  summarise(
-    Count = sum(Count)
-  ) %>% 
+  select(oWeekOf, WeekOf, Day, Brand, Count) |> 
+  group_by(oWeekOf, WeekOf, Day, Brand) |> 
+  summarise(Count = sum(Count)) |> 
   pivot_wider(names_from = "Day", values_from = "Count", values_fill = 0) |> 
-  select(WeekOf, Brand, Monday, Midweek,  Friday) |> 
+  select(oWeekOf, WeekOf, Brand, Monday, Midweek,  Friday) |> 
   left_join(total_stories_scheduled_df) |> 
-  # arrange(WeekOf, Brand) |> 
+  arrange(oWeekOf, Brand) |> 
+  identity() -> tmp_df
+
+tmp_df |> 
+  ungroup() |> 
+  select(-oWeekOf) |> 
   identity() -> weekly_stories_scheduled_by_brand_df
 
-weekly_stories_scheduled_by_brand_df |> 
+tmp_df |> 
   select(-Brand) |> 
   summarise(across(where(is.numeric), sum)) |> 
+  arrange(oWeekOf) |> 
+  ungroup() |> 
+  select(-oWeekOf) |> 
   identity() -> weekly_stories_scheduled_total_df
 
 ```
