@@ -8,6 +8,7 @@ execute:
   echo: false
   message: false
   warning: false
+  cache: false
 ---
 
 ```{r setup, echo=F,   warning=F}
