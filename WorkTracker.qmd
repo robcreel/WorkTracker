@@ -27,14 +27,14 @@ df <- read_sheet(ss, sheet = "Raw Data") |> filter(!is.na(Date))
 mdf <- read_sheet(ss, sheet = "KPI List")
 
 #### Munge data ####
-# NA Count means Count should be 1.
 sfd <- stamp("Sat, Jan 17, 1999")
 sfw <- stamp("Jan 17, 1999")
 year_string <- ", 2026"
 
+# NA Count means Count should be 1.
 df <- df |> 
   mutate(Count = replace_na(Count, 1)) |> 
-  arrange(Date) |> 
+  arrange(Date) |>  
   select(-URL, -Notes)
   
 # Analyze data by across four categories:
@@ -70,7 +70,7 @@ weekly_df <- cadence_df |>
 daily_brand_sensitive_df <- daily_df |> 
   filter(str_detect(`Work Completed`, "WBEZ or Sun"))
 daily_brand_arbitrary_df <- daily_df |> 
-  setdiff(daily_brand_sensitive_df)
+  filter(str_detect(`Work Completed`, "WBEZ or Sun", negate = T))
 ```
 
 # Daily
@@ -134,21 +134,21 @@ kable(story_slug_tracked_df)
 ```
 
 # Weekly
-## Weekly KPIs (Brand doesn't matter.)
+<!-- ## Weekly KPIs (Brand doesn't matter.) -->
 ```{r weekly_brand_arbitrary_kpis, echo=F,   warning=F}
 
 ##### Weekly #####
 weekly_brand_sensitive_df <- weekly_df |> 
   filter(str_detect(`Work Completed`, "WBEZ or Sun"))
 weekly_brand_arbitrary_df <- weekly_df |> 
-  setdiff(weekly_brand_sensitive_df)
+  filter(str_detect(`Work Completed`, "WBEZ or Sun", negate = TRUE))
 
 
 # [Uncheckable] C. Support Request Acknowledged Within 30 Minutes	
 # [Uncheckable] C. Support Request Completed or Coodinated	
 # [Uncheckable] D. Edit Story or Assist with Assets	Make approved edits to stories or assist with adding assets at least 5 times per week.
 
-# [Check] B. Insights Based Observation	Demonstrate usage by sharing at least 3 insights based observations per week in #audienceteam-internal. (Add screenshot to folder.)
+# [Per Saman - not doable if unneeded at that time.  Exclude from report.] B. Insights Based Observation	Demonstrate usage by sharing at least 3 insights based observations per week in #audienceteam-internal. (Add screenshot to folder.)
 weekly_df |> 
   group_by(oWeekOf, WeekOf) |> 
   filter(`Work Completed` == "B. Insights Based Observation") |> 
@@ -188,11 +188,11 @@ weekly_df |>
 
 ```
 
-### Weekly Insight Based Observations
+<!-- ### Weekly Insight Based Observations
 `r kable(weekly_insight_based_observation_df)`
 
 ### Weekly Push Notifications
-`r kable(weekly_push_notifications_df)`
+`r kable(weekly_push_notifications_df)` -->
 
 ## Weekly KPIs (Brand sensitive)
 ```{r weekly_brand_sensitive_kpis, echo=F,   warning=F}
