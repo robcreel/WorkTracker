@@ -152,7 +152,7 @@ weekly_brand_arbitrary_df <- weekly_df |>
 weekly_df |> 
   group_by(oWeekOf, WeekOf) |> 
   filter(`Work Completed` == "B. Insights Based Observation") |> 
-  summarise(IOB_count = sum(Count)) |> 
+  summarise(IBO_count = sum(Count)) |> 
   mutate(Target = 3) |> 
   arrange(oWeekOf) |> 
   ungroup() |> 
